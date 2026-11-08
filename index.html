@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#d9771f">
+<link rel="manifest" href="manifest.json">
+<title>Asystent rozmowy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Układ: jedna kolumna, 4 zakładki na dole jak w aplikacji mobilnej. Motyw: noc/czuwanie. */
+  --bg:#eef1f6; --surface:#ffffff; --ink:#14203a; --muted:#5a6680; --line:#d6dce8;
+  --accent:#d9771f; --accent-ink:#ffffff; --soft:#fbeedd;
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c2413b;
+  --display:"Bricolage Grotesque", system-ui, sans-serif;
+  --body:"Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1424; --surface:#172036; --ink:#e8ecf5; --muted:#9aa6c0; --line:#2a3550;
+    --accent:#f09a45; --accent-ink:#1a1206; --soft:#2b2418;
+    --ok:#4cc38a; --warn:#e2b04a; --bad:#ef6b63; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1424; --surface:#172036; --ink:#e8ecf5; --muted:#9aa6c0; --line:#2a3550;
+  --accent:#f09a45; --accent-ink:#1a1206; --soft:#2b2418;
+  --ok:#4cc38a; --warn:#e2b04a; --bad:#ef6b63; color-scheme: dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:17px/1.5 var(--body);}
+.app{max-width:620px;margin:0 auto;padding:16px 16px 96px;display:flex;flex-direction:column;gap:16px}
+header h1{font:800 1.7rem/1.1 var(--display);margin:4px 0 2px;text-wrap:balance}
+header p{margin:0;color:var(--muted);font-size:.95rem}
+h2{font:700 1.2rem/1.2 var(--display);margin:0 0 8px;text-wrap:balance}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px}
+label{font-weight:700;font-size:.95rem}
+.hint{color:var(--muted);font-size:.88rem;margin:0}
+input[type=text],textarea,select{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+textarea{min-height:96px;resize:vertical}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button{font:700 1rem var(--body);border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:10px 14px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button:disabled{opacity:.55;cursor:wait}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{flex:1 1 auto;font-weight:400}
+.seg button[aria-pressed="true"]{background:var(--soft);border-color:var(--accent);font-weight:700}
+.status{border-left:6px solid var(--muted);padding:12px 14px;border-radius:10px;background:var(--bg)}
+.status b{display:block;font:700 1.1rem var(--display)}
+.status.ok{border-color:var(--ok)} .status.warn{border-color:var(--warn)} .status.bad{border-color:var(--bad)}
+.out{white-space:pre-wrap;background:var(--bg);border-radius:10px;padding:12px;border:1px dashed var(--line);min-height:2.5em}
+.out:empty{display:none}
+.phrases{display:grid;gap:10px}
+.phrase{display:flex;gap:8px;align-items:stretch}
+.phrase button.say{flex:1;text-align:left;font-weight:400;font-size:1.05rem;padding:14px;background:var(--surface)}
+.phrase button.del{padding:0 12px;color:var(--muted)}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);display:flex;justify-content:center}
+nav .tabs{display:flex;max-width:620px;width:100%}
+nav button{flex:1;border:0;border-radius:0;background:none;padding:12px 4px 14px;font-size:.9rem;color:var(--muted);border-top:3px solid transparent}
+nav button[aria-current="page"]{color:var(--ink);border-top-color:var(--accent)}
+.view[hidden]{display:none}
+.big{position:fixed;inset:0;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font:800 2rem/1.25 var(--display);z-index:10;cursor:pointer}
+.big[hidden]{display:none}
+.big small{display:block;font:400 .9rem var(--body);margin-top:18px;opacity:.8}
+.chat{display:flex;flex-direction:column;gap:8px}
+.msg{padding:10px 12px;border-radius:12px;max-width:90%;white-space:pre-wrap}
+.msg.me{align-self:flex-end;background:var(--soft)}
+.msg.ai{align-self:flex-start;background:var(--bg);border:1px solid var(--line)}
+.toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:999px;font-size:.9rem;z-index:20}
+.toast[hidden]{display:none}
+.noai{font-size:.88rem;color:var(--muted)}
+.steps{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:8px}
+.dict{align-self:flex-start;margin-top:6px;display:inline-flex;gap:8px;align-items:center;font-weight:400;font-size:.95rem}
+.dict .dot{width:10px;height:10px;border-radius:50%;background:var(--muted)}
+.dict.on{border-color:var(--bad)} .dict.on .dot{background:var(--bad)}
+.sheet{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);border-radius:16px 16px 0 0;padding:18px 16px 24px;z-index:15;box-shadow:0 -8px 30px rgba(0,0,0,.25)}
+.sheet[hidden]{display:none}
+.sheet .inner{max-width:620px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+@media (prefers-reduced-motion: no-preference){ .dict.on .dot{animation:pulse 1s infinite} @keyframes pulse{50%{opacity:.3}} }
+@media (prefers-reduced-motion: no-preference){ .card{transition:border-color .2s} }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Asystent rozmowy</h1>
+    <p>Dla rozmów, w których narkolepsja przeszkadza. Przed, w trakcie i po.</p>
+  </header>
+
+  <!-- PRZED -->
+  <section class="view" id="v-przed">
+    <div class="card">
+      <h2>Czy to dobry moment na rozmowę?</h2>
+      <div>
+        <label for="senn">Jak bardzo chce ci się spać? <span id="sennVal">4</span>/10</label>
+        <input type="range" id="senn" min="0" max="10" value="4">
+      </div>
+      <div>
+        <label id="drzLbl">Ostatnia drzemka</label>
+        <div class="seg" role="group" aria-labelledby="drzLbl" id="drzemka">
+          <button type="button" data-v="0" aria-pressed="true">&lt; 1 h temu</button>
+          <button type="button" data-v="1" aria-pressed="false">1–3 h</button>
+          <button type="button" data-v="2" aria-pressed="false">&gt; 3 h / brak</button>
+        </div>
+      </div>
+      <div>
+        <label id="wagaLbl">Jak ważna jest rozmowa?</label>
+        <div class="seg" role="group" aria-labelledby="wagaLbl" id="waga">
+          <button type="button" data-v="0" aria-pressed="false">Luźna</button>
+          <button type="button" data-v="1" aria-pressed="true">Średnia</button>
+          <button type="button" data-v="2" aria-pressed="false">Trudna / ważna</button>
+        </div>
+      </div>
+      <div class="status ok" id="status" aria-live="polite"><b>Dobry moment</b><span>Mów normalnie, ustalenia zapisz na koniec.</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Przygotuj rozmowę</h2>
+      <div>
+        <label for="kto">Z kim?</label>
+        <input type="text" id="kto" placeholder="np. brat, mama, klient">
+      </div>
+      <div>
+        <label for="temat">O czym i co chcesz osiągnąć?</label>
+        <textarea id="temat" placeholder="np. Chcę ustalić z bratem, że trudne sprawy firmowe omawiamy rano, a nie wieczorem."></textarea>
+      </div>
+      <div class="row">
+        <button class="primary" id="btnPrep" type="button">Przygotuj mi ściągę</button>
+      </div>
+      <p class="noai" id="noaiPrep" hidden>Asystent AI działa tylko w wersji na claude.ai. Tu dostajesz szablon do uzupełnienia.</p>
+      <div class="out" id="prepOut"></div>
+      <div class="row"><button type="button" id="copyPrep" hidden>Kopiuj ściągę</button></div>
+    </div>
+  </section>
+
+  <!-- W TRAKCIE -->
+  <section class="view" id="v-trakcie" hidden>
+    <div class="card">
+      <h2>Gotowe zdania</h2>
+      <p class="hint">Stuknij zdanie, żeby pokazać je dużym tekstem albo przeczytać z ekranu.</p>
+      <div class="phrases" id="phrases"></div>
+      <div class="row">
+        <input type="text" id="newPhrase" placeholder="Dodaj własne zdanie" style="flex:1">
+        <button type="button" id="addPhrase">Dodaj</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Szybkie notatki</h2>
+      <p class="hint">Zapisuj ustalenia na bieżąco. Zostają w tej przeglądarce.</p>
+      <textarea id="notes" placeholder="- brat: zamówienie rur do piątku&#10;- ja: oferta do klienta w poniedziałek"></textarea>
+    </div>
+  </section>
+
+  <!-- PO -->
+  <section class="view" id="v-po" hidden>
+    <div class="card">
+      <h2>Nagraj rozmowę i zamień na tekst</h2>
+      <ol class="steps">
+        <li><b>Zapytaj rozmówcę:</b> „Nagram to, żeby nic mi nie uciekło, dobra?”</li>
+        <li><b>Nagraj w telefonie.</b> Samsung: aplikacja Dyktafon, potem „Transkrybuj” (Galaxy AI). Inny telefon: dowolna aplikacja z transkrypcją po polsku.</li>
+        <li><b>Skopiuj tekst</b> z aplikacji i wklej poniżej.</li>
+        <li><b>Stuknij „Napisz wiadomość”.</b> Agent wyciągnie z długiego tekstu same ustalenia.</li>
+      </ol>
+      <p class="hint">Krótkie notatki możesz też nagrać głosem. Użyj przycisku „Powiedz zamiast pisać” pod polem tekstu.</p>
+    </div>
+    <div class="card">
+      <h2>Podsumowanie do wysłania</h2>
+      <p class="hint">Agent zamieni notatki w krótką wiadomość, żeby nikt potem nie mówił „przecież mówiłem”.</p>
+      <div>
+        <label for="poNotes">Notatki albo tekst z nagrania</label>
+        <textarea id="poNotes" placeholder="Wpisz notatki albo wklej cały tekst z nagrania. Agent wyłapie same ustalenia."></textarea>
+      </div>
+      <div>
+        <label for="ton">Ton</label>
+        <select id="ton">
+          <option>Rodzinny, luźny</option>
+          <option>Rzeczowy, do pracy</option>
+          <option>Uprzejmy, do klienta</option>
+        </select>
+      </div>
+      <div class="row"><button class="primary" type="button" id="btnSum">Napisz wiadomość</button></div>
+      <p class="noai" id="noaiSum" hidden>Asystent AI działa tylko w wersji na claude.ai. Tu dostajesz gotowy szablon.</p>
+      <div class="out" id="sumOut"></div>
+      <div class="row"><button type="button" id="copySum" hidden>Kopiuj wiadomość</button></div>
+    </div>
+  </section>
+
+  <!-- AGENT -->
+  <section class="view" id="v-agent" hidden>
+    <div class="card">
+      <h2>Porozmawiaj o trudnej sytuacji</h2>
+      <p class="hint">Opisz, co poszło nie tak. Agent pomoże oddzielić fakty od myśli i ułożyć twoje własne zdanie na następny raz.</p>
+      <div class="chat" id="chat" aria-live="polite"></div>
+      <textarea id="chatIn" placeholder="np. Wczoraj przysnąłem, jak brat mówił o zleceniu, a on się wkurzył, że mnie to nie obchodzi."></textarea>
+      <div class="row">
+        <button class="primary" type="button" id="btnChat">Wyślij</button>
+        <button type="button" id="btnClear">Nowa rozmowa</button>
+      </div>
+      <p class="noai" id="noaiChat" hidden>Agent AI jest niedostępny w tym widoku. Otwórz stronę na claude.ai, żeby z nim rozmawiać.</p>
+    </div>
+  </section>
+</div>
+
+<nav aria-label="Etapy rozmowy"><div class="tabs">
+  <button type="button" data-tab="przed" aria-current="page">Przed</button>
+  <button type="button" data-tab="trakcie">W trakcie</button>
+  <button type="button" data-tab="po">Po</button>
+  <button type="button" data-tab="agent">Agent</button>
+</div></nav>
+
+<div class="big" id="big" hidden role="dialog" aria-modal="true" tabindex="-1"><div><span id="bigText"></span><small>Stuknij, żeby zamknąć</small></div></div>
+<div class="toast" id="toast" hidden></div>
+<div class="sheet" id="dictHelp" hidden role="dialog" aria-modal="true" aria-labelledby="dictHelpT">
+  <div class="inner">
+    <h2 id="dictHelpT">Mów przez klawiaturę telefonu</h2>
+    <p class="hint" style="margin:0">Przeglądarka nie dała dostępu do mikrofonu. Możesz dyktować przez klawiaturę telefonu:</p>
+    <ol class="steps">
+      <li>Stuknij w pole tekstowe, żeby otworzyć klawiaturę.</li>
+      <li><b>Android (Gboard, Samsung):</b> stuknij ikonę mikrofonu u góry klawiatury.<br><b>iPhone:</b> mikrofon w prawym dolnym rogu klawiatury.</li>
+      <li>Mów normalnie. Tekst pojawi się w polu. Słowa „przecinek” i „kropka” wstawiają znaki.</li>
+    </ol>
+    <button class="primary" type="button" id="dictOk">Rozumiem, otwórz pole</button>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem("ar_"+k); return v==null ? d : JSON.parse(v);}catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem("ar_"+k, JSON.stringify(v)); }catch(e){} }
+};
+function toast(t){ const el=$("#toast"); el.textContent=t; el.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>el.hidden=true,1800); }
+async function copy(text){ try{ await navigator.clipboard.writeText(text); toast("Skopiowano"); }catch(e){ toast("Zaznacz tekst i skopiuj ręcznie"); } }
+
+/* Zakładki */
+const TABS=["przed","trakcie","po","agent"];
+function show(t){
+  if(!TABS.includes(t)) t="przed";
+  TABS.forEach(x=>{ $("#v-"+x).hidden = x!==t; });
+  document.querySelectorAll("nav button").forEach(b=>{ if(b.dataset.tab===t) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current"); });
+  if(t==="po" && !$("#poNotes").value.trim()) $("#poNotes").value = $("#notes").value;
+  if(location.hash.slice(1)!==t) history.replaceState(null,"","#"+t);
+  window.scrollTo(0,0);
+}
+document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>show(b.dataset.tab)));
+window.addEventListener("hashchange",()=>show(location.hash.slice(1)));
+
+/* Ocena momentu */
+function seg(id){ const g=$("#"+id); g.addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; g.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed", x===b)); rate(); }); }
+function segVal(id){ const b=$("#"+id+" [aria-pressed=true]"); return b?+b.dataset.v:0; }
+seg("drzemka"); seg("waga");
+$("#senn").addEventListener("input",()=>{ $("#sennVal").textContent=$("#senn").value; rate(); });
+function rate(){
+  const s=+$("#senn").value, d=segVal("drzemka"), w=segVal("waga");
+  const score = s + d*1.5 + w*1.5;
+  const el=$("#status");
+  let cls,title,txt;
+  if(score<=6){cls="ok";title="Dobry moment";txt="Mów normalnie, ustalenia zapisz na koniec.";}
+  else if(score<=10){cls="warn";title="Krótko i konkretnie";txt="Maks. 10–15 minut. Najpierw najważniejsza sprawa. Notuj na bieżąco.";}
+  else {cls="bad";title="Lepiej przełożyć";txt=w===2?"Ważna rozmowa przy dużej senności to ryzyko kłótni. Powiedz: „Chcę to dobrze omówić. Pogadajmy po mojej drzemce, za godzinę”.":"Zrób najpierw drzemkę albo przełóż. Jeśli musisz teraz, użyj ściągi i notatek.";}
+  el.className="status "+cls; el.innerHTML="<b></b><span></span>"; el.querySelector("b").textContent=title; el.querySelector("span").textContent=txt;
+  return {s,d,w,title};
+}
+
+/* Gotowe zdania */
+const DEFAULT_PHRASES=[
+  "Powtórz proszę ostatnie zdanie, uciekło mi.",
+  "Mam narkolepsję. Jak wyglądam na nieobecnego, to nie znaczy, że mnie nie obchodzisz.",
+  "Potrzebuję 10 minut przerwy. Wrócę do tego, obiecuję.",
+  "Zapiszę to, żebyśmy oboje pamiętali.",
+  "Czy możemy to dokończyć rano? Wtedy jestem najbardziej przytomny.",
+  "Upewnię się, że dobrze zrozumiałem: chodzi o to, że…"
+];
+let phrases=store.get("phrases", DEFAULT_PHRASES);
+function renderPhrases(){
+  const box=$("#phrases"); box.innerHTML="";
+  phrases.forEach((p,i)=>{
+    const row=document.createElement("div"); row.className="phrase";
+    const b=document.createElement("button"); b.className="say"; b.type="button"; b.textContent=p;
+    b.addEventListener("click",()=>{ $("#bigText").textContent=p; $("#big").hidden=false; $("#big").focus(); });
+    const del=document.createElement("button"); del.className="del"; del.type="button"; del.textContent="✕"; del.setAttribute("aria-label","Usuń zdanie: "+p);
+    del.addEventListener("click",()=>{ phrases.splice(i,1); store.set("phrases",phrases); renderPhrases(); });
+    row.append(b,del); box.append(row);
+  });
+}
+$("#addPhrase").addEventListener("click",()=>{ const v=$("#newPhrase").value.trim(); if(!v) return; phrases.push(v); store.set("phrases",phrases); $("#newPhrase").value=""; renderPhrases(); });
+$("#newPhrase").addEventListener("keydown",e=>{ if(e.key==="Enter") $("#addPhrase").click(); });
+$("#big").addEventListener("click",()=>{ $("#big").hidden=true; });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") $("#big").hidden=true; });
+renderPhrases();
+
+/* Notatki */
+$("#notes").value=store.get("notes","");
+$("#notes").addEventListener("input",()=>store.set("notes",$("#notes").value));
+$("#kto").value=store.get("kto",""); $("#temat").value=store.get("temat","");
+$("#kto").addEventListener("input",()=>store.set("kto",$("#kto").value));
+$("#temat").addEventListener("input",()=>store.set("temat",$("#temat").value));
+
+/* AI */
+const CONTEXT = `Użytkownik ma narkolepsję. Przez senność, mikrosny, luki w pamięci i drażliwość ze zmęczenia czasem się z ludźmi nie dogaduje (rodzina, współpracownicy, klienci). Pisz po polsku, prosto, konkretnie, "jak dziecku", bez ogólnikowych afirmacji i bez toksycznej pozytywności. Krótko — czyta na telefonie. Nie stawiaj diagnoz; przy poważnych problemach możesz raz zasugerować rozmowę z neurologiem/lekarzem snu. Jeśli wiadomość sugeruje poważny kryzys emocjonalny, porzuć format i po prostu wesprzyj oraz zachęć do kontaktu z bliską osobą lub specjalistą.`;
+let sample=null;
+let busy=false;
+async function ask(input, outEl, btn){
+  if(busy) return null; busy=true; if(btn) btn.disabled=true;
+  try{
+    const r = await sample(input,{ cache:false, onText:({text})=>{ if(outEl) outEl.textContent=text; } });
+    if(outEl) outEl.textContent=r.text; return r.text;
+  }catch(e){
+    if(e && e.code==="not_granted"){ toast("Brak zgody na asystenta AI"); }
+    else if(e && e.code==="rate_limited"){ toast("Za dużo zapytań. Spróbuj za chwilę."); }
+    else toast("Asystent nie odpowiedział. Spróbuj ponownie.");
+    if(outEl && e && e.text) outEl.textContent=e.text;
+    return null;
+  }finally{ busy=false; if(btn) btn.disabled=false; }
+}
+
+/* Ściąga */
+$("#btnPrep").addEventListener("click", async ()=>{
+  const kto=$("#kto").value.trim()||"ktoś bliski", temat=$("#temat").value.trim();
+  if(!temat){ toast("Wpisz, o czym chcesz porozmawiać"); $("#temat").focus(); return; }
+  const st=rate(); const out=$("#prepOut");
+  if(!sample){
+    out.textContent=`ŚCIĄGA: rozmowa z: ${kto}\n\nCel: ${temat}\n\n1. Najważniejsza rzecz: …\n2. Druga rzecz: …\n3. Na czym mi zależy: …\n\nNa start: „Chcę z tobą pogadać o … Zależy mi, żebyśmy to ustalili, bo …”\n\nJak zgubię wątek: „Sekunda, zerknę w notatkę. Byliśmy przy …”\n\nNa koniec: zapisz ustalenia i wyślij je.`;
+    $("#copyPrep").hidden=false; return;
+  }
+  out.textContent="Przygotowuję…";
+  const t = await ask(`${CONTEXT}
+
+Zadanie: przygotuj krótką ściągę na rozmowę.
+Rozmówca: ${kto}
+Temat i cel (słowa użytkownika): ${temat}
+Stan użytkownika: senność ${st.s}/10, ocena momentu: ${st.title}.
+
+Format (zwykły tekst, bez markdownu, max 120 słów):
+CEL: jedno zdanie
+3 PUNKTY: numerowane, najważniejszy pierwszy, każdy max 10 słów
+NA START: jedno zdanie otwarcia, naturalne, w stylu użytkownika
+GDY ZGUBIĘ WĄTEK: jedno zdanie
+UWAGA: jedna rada dopasowana do poziomu senności`, out, $("#btnPrep"));
+  if(t) $("#copyPrep").hidden=false;
+});
+$("#copyPrep").addEventListener("click",()=>copy($("#prepOut").textContent));
+
+/* Podsumowanie */
+$("#btnSum").addEventListener("click", async ()=>{
+  const n=$("#poNotes").value.trim(); const out=$("#sumOut");
+  if(!n){ toast("Wpisz albo wklej notatki"); $("#poNotes").focus(); return; }
+  if(!sample){
+    out.textContent=`Hej, dzięki za rozmowę. Zapisuję, co ustaliliśmy, żebyśmy obaj pamiętali:\n${n}\nJeśli coś źle zrozumiałem, daj znać.`;
+    $("#copySum").hidden=false; return;
+  }
+  out.textContent="Piszę…";
+  const t = await ask(`${CONTEXT}
+
+Zadanie: zamień notatki z rozmowy w krótką wiadomość (SMS/WhatsApp) do rozmówcy, podsumowującą ustalenia. Tekst może być surową, chaotyczną transkrypcją nagrania (błędy rozpoznawania mowy, powtórzenia, dygresje) — wyłap z niego tylko konkretne ustalenia, pomiń resztę.
+Ton: ${$("#ton").value}
+Notatki:
+${n}
+
+Zasady: max 70 słów, zwykły tekst. Krótkie wprowadzenie, potem ustalenia jako lista z myślnikami (kto, co, do kiedy — tylko to, co jest w notatkach, nic nie wymyślaj). Na końcu jedno zdanie w stylu "Jeśli coś źle zrozumiałem, daj znać." Nie wspominaj o narkolepsji. Zwróć tylko treść wiadomości.`, out, $("#btnSum"));
+  if(t) $("#copySum").hidden=false;
+});
+$("#copySum").addEventListener("click",()=>copy($("#sumOut").textContent));
+
+/* Agent - czat */
+let history_=store.get("chat",[]);
+function renderChat(){
+  const c=$("#chat"); c.innerHTML="";
+  if(!history_.length){
+    const m=document.createElement("div"); m.className="msg ai";
+    m.textContent="Cześć. Opisz jedną sytuację, w której się nie dogadaliście. Przejdziemy ją krok po kroku: co się stało, co pomyślałeś, co jest w twojej kontroli i co powiesz następnym razem.";
+    c.append(m);
+  }
+  history_.forEach(h=>{ const m=document.createElement("div"); m.className="msg "+(h.role==="user"?"me":"ai"); m.textContent=h.content; c.append(m); });
+}
+renderChat();
+$("#btnClear").addEventListener("click",()=>{ history_=[]; store.set("chat",history_); renderChat(); });
+$("#btnChat").addEventListener("click", async ()=>{
+  const v=$("#chatIn").value.trim(); if(!v||!sample) return;
+  history_.push({role:"user",content:v}); $("#chatIn").value=""; renderChat();
+  const live=document.createElement("div"); live.className="msg ai"; live.textContent="…"; $("#chat").append(live);
+  const msgs = history_.map((h,i)=> i===0 ? {role:"user",content:`${CONTEXT}
+
+Twoja rola: coach komunikacji. Prowadź użytkownika krok po kroku, jedno pytanie naraz: 1) fakty (co dokładnie się stało), 2) jego myśl w tamtej chwili, 3) czy to prawda / co mogło myśleć druga strona, 4) co jest w jego kontroli (np. pora rozmowy, drzemka, notatki, powiedzenie wprost o narkolepsji), 5) pomóż mu ułożyć JEGO WŁASNE jedno zdanie na następny raz. Gdy widzisz powtarzający się wzorzec, nazwij go wprost. Odpowiedzi max 80 słów.
+
+Wiadomość użytkownika: ${h.content}`} : h);
+  const t = await ask(msgs, live, $("#btnChat"));
+  if(t){ history_.push({role:"assistant",content:t}); }
+  else { history_.pop(); }
+  store.set("chat",history_.slice(-30)); renderChat();
+});
+
+/* Dyktowanie: najpierw rozpoznawanie mowy przeglądarki, a gdy niedostępne - instrukcja dyktowania z klawiatury */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec=null, recBtn=null, helpTarget=null;
+function openHelp(ta){ helpTarget=ta; $("#dictHelp").hidden=false; $("#dictOk").focus(); }
+$("#dictOk").addEventListener("click",()=>{ $("#dictHelp").hidden=true; if(helpTarget){ helpTarget.focus(); helpTarget.scrollIntoView({block:"center"}); } });
+function stopRec(){ try{ rec && rec.stop(); }catch(e){} }
+function setBtn(b,on){ b.classList.toggle("on",on); b.querySelector("span:last-child").textContent = on ? "Słucham… stuknij, żeby zakończyć" : "Powiedz zamiast pisać"; b.setAttribute("aria-pressed",on); }
+function addDictation(id){
+  const ta=$("#"+id);
+  const b=document.createElement("button"); b.type="button"; b.className="dict"; b.setAttribute("aria-pressed","false");
+  b.innerHTML='<span class="dot" aria-hidden="true"></span><span>Powiedz zamiast pisać</span>';
+  ta.insertAdjacentElement("afterend", b);
+  b.addEventListener("click",()=>{
+    if(rec && recBtn===b){ stopRec(); return; }
+    if(rec) stopRec();
+    if(!SR){ openHelp(ta); return; }
+    let r; try{ r=new SR(); }catch(e){ openHelp(ta); return; }
+    r.lang="pl-PL"; r.continuous=true; r.interimResults=true;
+    const base = ta.value ? ta.value.replace(/\s*$/," ") : "";
+    let finalTxt="";
+    r.onresult=e=>{
+      let interim="";
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        const t=e.results[i][0].transcript;
+        if(e.results[i].isFinal) finalTxt+=t+" "; else interim+=t;
+      }
+      ta.value = base + finalTxt + interim;
+      ta.dispatchEvent(new Event("input"));
+    };
+    r.onerror=e=>{ if(e.error==="not-allowed"||e.error==="service-not-allowed"||e.error==="audio-capture"){ openHelp(ta); } else if(e.error!=="aborted"&&e.error!=="no-speech"){ toast("Rozpoznawanie mowy przerwane"); } };
+    r.onend=()=>{ setBtn(b,false); if(rec===r){ rec=null; recBtn=null; } ta.value=ta.value.trim(); ta.dispatchEvent(new Event("input")); };
+    rec=r; recBtn=b; setBtn(b,true);
+    try{ r.start(); }catch(e){ rec=null; recBtn=null; setBtn(b,false); openHelp(ta); }
+  });
+}
+["temat","notes","poNotes","chatIn"].forEach(addDictation);
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") $("#dictHelp").hidden=true; });
+
+/* Start */
+rate();
+show(location.hash.slice(1)||"przed");
+(async()=>{
+  try{ sample = await window.claude?.use?.("sample"); }catch(e){ sample=null; }
+  if(!sample){
+    $("#noaiPrep").hidden=false; $("#noaiSum").hidden=false; $("#noaiChat").hidden=false;
+    $("#btnChat").disabled=true;
+  }
+})();
+</script>
+</body>
+</html>
